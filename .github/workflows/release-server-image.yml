@@ -1,0 +1,164 @@
+name: Package launcher server image
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_image:
+        description: Exact currently deployed Headwind MDM server image, for example headwindmdm/hmdm:0.1.9
+        required: true
+        type: string
+      image_tag:
+        description: Optional GHCR tag; defaults to launcher versionName
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  package:
+    name: Signed APK + bundled server image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      REGISTRY_IMAGE: ghcr.io/dockers-projects/hmdm-server-launcher
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing repository secret: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Read launcher version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_NAME="$(sed -n 's/^[[:space:]]*versionName[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle | head -n1)"
+          VERSION_CODE="$(sed -n 's/^[[:space:]]*versionCode[[:space:]]*\([0-9][0-9]*\).*/\1/p' app/build.gradle | head -n1)"
+          test -n "${VERSION_NAME}"
+          test -n "${VERSION_CODE}"
+          echo "version_name=${VERSION_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
+
+          TAG="${{ inputs.image_tag }}"
+          if [[ -z "${TAG}" ]]; then
+            TAG="${VERSION_NAME}"
+          fi
+          echo "image_tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Android toolchain image
+        run: |
+          docker build \
+            --pull \
+            -f ci/android/Dockerfile \
+            -t "hmdm-android-ci:${GITHUB_SHA}" \
+            ci/android
+
+      - name: Materialize signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > /tmp/hmdm-release.jks
+          chmod 0600 /tmp/hmdm-release.jks
+          test -s /tmp/hmdm-release.jks
+
+      - name: Build and sign release APK
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e CI=true \
+            -e HOME=/tmp/home \
+            -e GRADLE_USER_HOME=/tmp/gradle-home \
+            -e ANDROID_KEYSTORE_FILE=/tmp/release.jks \
+            -e ANDROID_KEYSTORE_PASSWORD \
+            -e ANDROID_KEY_ALIAS \
+            -e ANDROID_KEY_PASSWORD \
+            -v "${PWD}:/workspace" \
+            -v /tmp/hmdm-release.jks:/tmp/release.jks:ro \
+            -w /workspace \
+            "hmdm-android-ci:${GITHUB_SHA}" \
+            bash ci/build-release.sh
+
+      - name: Upload signed launcher APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hmdm-launcher-${{ steps.meta.outputs.version_name }}
+          path: |
+            dist/hmdm-${{ steps.meta.outputs.version_name }}-os.apk
+            dist/hmdm-${{ steps.meta.outputs.version_name }}-os.apk.sha256
+            dist/signing-certificate.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Build bundled Headwind server image
+        env:
+          BASE_IMAGE: ${{ inputs.base_image }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --build-arg "HMDM_BASE_IMAGE=${BASE_IMAGE}" \
+            --build-arg "CLIENT_VERSION=${VERSION_NAME}" \
+            --build-arg "VCS_REF=${GITHUB_SHA}" \
+            -f ci/server-image/Dockerfile \
+            -t "${REGISTRY_IMAGE}:${IMAGE_TAG}" \
+            .
+
+      - name: Verify APK is physically bundled
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e EXPECTED_VERSION="${VERSION_NAME}" \
+            --entrypoint sh \
+            "${REGISTRY_IMAGE}:${IMAGE_TAG}" \
+            -c 'test -s /opt/hmdm/bundled-launcher/launcher.apk && test "$BUNDLED_LAUNCHER_VERSION" = "$EXPECTED_VERSION"'
+
+      - name: Push server image
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: docker push "${REGISTRY_IMAGE}:${IMAGE_TAG}"
+
+      - name: Summary
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          {
+            echo "### Launcher delivery package"
+            echo
+            echo "- Package: com.hmdm.launcher"
+            echo "- versionName: ${{ steps.meta.outputs.version_name }}"
+            echo "- versionCode: ${{ steps.meta.outputs.version_code }}"
+            echo "- Base server image: ${{ inputs.base_image }}"
+            echo "- Published image: ${REGISTRY_IMAGE}:${IMAGE_TAG}"
+            echo "- APK is embedded at: /opt/hmdm/bundled-launcher/launcher.apk"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Cleanup signing material
+        if: always()
+        run: rm -f /tmp/hmdm-release.jks

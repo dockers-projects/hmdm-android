@@ -55,6 +55,25 @@ jobs:
             "hmdm-android-ci:${GITHUB_SHA}" \
             bash ci/run-checks.sh
 
+      - name: Smoke-build launcher-bundled server image
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp app/build/outputs/apk/opensource/debug/app-opensource-debug.apk dist/launcher.apk
+          VERSION_NAME="$(sed -n 's/^[[:space:]]*versionName[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle | head -n1)"
+          docker build \
+            --pull \
+            --build-arg "HMDM_BASE_IMAGE=headwindmdm/hmdm:0.1.9" \
+            --build-arg "CLIENT_VERSION=${VERSION_NAME}" \
+            --build-arg "VCS_REF=${GITHUB_SHA}" \
+            -f ci/server-image/Dockerfile \
+            -t "hmdm-server-ci:${GITHUB_SHA}" \
+            .
+          docker run --rm --entrypoint sh "hmdm-server-ci:${GITHUB_SHA}" -c \
+            'test -s /opt/hmdm/bundled-launcher/launcher.apk'
+          rm -rf dist
+
       - name: Upload unit test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,6 +104,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Cleanup CI image
+      - name: Cleanup CI images
         if: always()
-        run: docker image rm -f "hmdm-android-ci:${GITHUB_SHA}" || true
+        run: |
+          docker image rm -f "hmdm-android-ci:${GITHUB_SHA}" || true
+          docker image rm -f "hmdm-server-ci:${GITHUB_SHA}" || true
