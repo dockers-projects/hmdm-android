@@ -1,0 +1,24 @@
+{
+  "configurations": {
+    "1": {
+      "folders": [
+        {
+          "id": "school",
+          "name": "School",
+          "screenOrder": 10,
+          "bottom": false
+        },
+        {
+          "id": "media",
+          "name": "Media",
+          "screenOrder": 20,
+          "bottom": false
+        }
+      ],
+      "applications": {
+        "com.example.math": "school",
+        "com.google.android.youtube": "media"
+      }
+    }
+  }
+}
