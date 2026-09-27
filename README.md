@@ -98,3 +98,6 @@ The launcher supports server-configured application folders. See [docs/launcher-
 - compatibility/fallback rules;
 - configuration examples;
 - current stock-server limitations.
+
+## Dummy
+
