@@ -137,6 +137,85 @@ Example with two folders:
 - Application key-code shortcuts remain active even when the application is inside a folder.
 - Nested folders are intentionally not supported.
 
+## Migration from a launcher version without folders
+
+Folder support is designed for a mixed-version fleet, so the launcher APK and the server configuration do not need to change at exactly the same moment.
+
+### Compatibility matrix
+
+| Device launcher | Server sends folder fields | Result |
+| --- | --- | --- |
+| Old launcher, no folder support | No | Existing flat launcher |
+| Old launcher, no folder support | Yes | Existing flat launcher; folder fields are ignored |
+| New folder-capable launcher | No | Existing flat launcher |
+| New folder-capable launcher | Yes | Configured folders are rendered |
+
+The pre-folder launcher already declares `@JsonIgnoreProperties(ignoreUnknown = true)` on both `ServerConfig` and `Application`. Therefore an older launcher safely ignores the new top-level `launcherFolders` field and the new per-application `folderId` field instead of rejecting the configuration.
+
+This means a server may start emitting the new fields while older devices are still present. Older devices continue to use each application's existing `bottom` and `screenOrder` values and show a flat launcher. Folder-capable devices use the folder placement rules.
+
+### Production release prerequisites
+
+For an in-place update of an already installed Headwind MDM launcher:
+
+- keep the package name `com.hmdm.launcher`;
+- sign the new APK with the same signing certificate/key as the installed launcher;
+- increment `versionCode` above the deployed build;
+- use a new `versionName` so operators can distinguish the folder-capable build;
+- build and distribute a release APK, not the CI debug APK.
+
+For example, when upgrading a deployed `versionCode 15390 / versionName 6.39`, a first folder-enabled production build could use `versionCode 15391 / versionName 6.39.1`.
+
+The exact version values are a release decision; the important Android requirement is that the update uses the same package/signing identity and a higher `versionCode`.
+
+### Recommended rollout
+
+1. Deploy the server-side schema/UI support while leaving folder assignment disabled for existing configurations.
+2. Publish the folder-capable launcher APK as an update of `com.hmdm.launcher`.
+3. Upgrade a small canary group first.
+4. Verify that the upgraded devices still display the legacy flat launcher while no folders are configured.
+5. Enable one test folder only for the canary configuration.
+6. Verify folder rendering, child ordering, app launch, web/intent entries, bottom-row placement and key-code shortcuts.
+7. Expand the APK rollout to the remaining devices.
+8. Enable folder assignments progressively after the required devices have upgraded.
+
+Because older launchers ignore the new fields, steps 7 and 8 may overlap when necessary. Keeping them separate makes troubleshooting and rollback easier.
+
+### Mixed-version behavior
+
+During migration, devices may intentionally render the same configuration differently:
+
+- old launcher: applications remain visible in the flat root/bottom layout;
+- new launcher: applications with a valid `folderId` move into the corresponding folder;
+- applications with an unknown `folderId` remain visible in their legacy root/bottom position on the new launcher as a fail-safe.
+
+When a folder's `bottom` value differs from a child's existing `bottom` value, old launchers use the application's `bottom`, while folder-capable launchers use the folder's `bottom`. This is expected during a mixed-version rollout.
+
+### Rollback
+
+The preferred rollback is configuration-only and does not require downgrading the APK:
+
+1. Remove `folderId` assignments from applications.
+2. Remove or stop emitting `launcherFolders`.
+3. Push/refresh the configuration.
+
+A folder-capable launcher with no folder configuration immediately returns to the legacy flat layout.
+
+Avoid relying on APK downgrade as the primary rollback. Android normally rejects installing an APK with a lower `versionCode` over a newer installed version. If a binary rollback is ever required, build the previous behavior again with the same package/signing key and a `versionCode` higher than the currently installed build.
+
+### Migration acceptance checks
+
+Before declaring the migration complete, verify all of the following:
+
+- an old launcher accepts a configuration containing `launcherFolders` and `folderId` without JSON/configuration failure;
+- an old launcher still shows applications in the flat layout;
+- a new launcher with no folder configuration behaves exactly like the legacy launcher;
+- a new launcher with folder configuration renders the expected folder tiles and contents;
+- unknown folder IDs do not hide applications;
+- empty folders are hidden;
+- bottom-row folders render in the correct area;
+- removing folder configuration restores the flat layout without reinstalling the APK.
+
 ## Automated validation
 
 The repository CI runs on GitHub-hosted Ubuntu (`ubuntu-latest`) and builds inside `ci/android/Dockerfile`.
