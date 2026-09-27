@@ -1,0 +1,94 @@
+name: Android CI
+
+on:
+  pull_request:
+    branches:
+      - master
+      - feature/launcher-folders
+  push:
+    branches:
+      - master
+      - feature/launcher-folders
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Unit tests, lint, APK
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
+
+    steps:
+      - name: Require Linux x64 self-hosted runner
+        run: |
+          echo "runner: $(uname -a)"
+          test "$(uname -s)" = "Linux"
+          test "$(uname -m)" = "x86_64"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Docker
+        run: |
+          docker version
+          docker info >/dev/null
+
+      - name: Build Android CI image
+        run: |
+          docker build \
+            --pull \
+            -f ci/android/Dockerfile \
+            -t "hmdm-android-ci:${GITHUB_SHA}" \
+            ci/android
+
+      - name: Run quality gates
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e CI=true \
+            -e HOME=/tmp/home \
+            -e GRADLE_USER_HOME=/tmp/gradle-home \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            "hmdm-android-ci:${GITHUB_SHA}" \
+            bash ci/run-checks.sh
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports-${{ github.sha }}
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports-${{ github.sha }}
+          path: |
+            app/build/reports/lint-results-*
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hmdm-opensource-debug-${{ github.sha }}
+          path: app/build/outputs/apk/opensource/debug/app-opensource-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Cleanup CI image
+        if: always()
+        run: docker image rm -f "hmdm-android-ci:${GITHUB_SHA}" || true

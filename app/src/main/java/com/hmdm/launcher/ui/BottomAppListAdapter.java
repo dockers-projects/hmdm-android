@@ -15,6 +15,6 @@ public class BottomAppListAdapter extends BaseAppListAdapter {
     @Override
     public void updateShortcuts(Activity parentActivity) {
         items = AppShortcutManager.getInstance().getInstalledApps(parentActivity, true);
-        initShortcuts();
+        shortcuts = AppShortcutManager.getInstance().getShortcuts(parentActivity, true);
     }
 }

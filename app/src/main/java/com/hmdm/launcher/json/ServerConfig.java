@@ -111,6 +111,8 @@ public class ServerConfig {
 
     private List<Application> applications = new LinkedList();
 
+    private List<LauncherFolder> launcherFolders = new LinkedList();
+
     private List<ApplicationSetting> applicationSettings = new LinkedList();
 
     private List<RemoteFile> files = new LinkedList();
@@ -181,6 +183,14 @@ public class ServerConfig {
 
     public void setApplications( List< Application > applications ) {
         this.applications = applications;
+    }
+
+    public List<LauncherFolder> getLauncherFolders() {
+        return launcherFolders;
+    }
+
+    public void setLauncherFolders(List<LauncherFolder> launcherFolders) {
+        this.launcherFolders = launcherFolders;
     }
 
     public List< ApplicationSetting > getApplicationSettings() {
