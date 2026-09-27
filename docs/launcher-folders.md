@@ -139,7 +139,7 @@ Example with two folders:
 
 ## Automated validation
 
-The repository CI runs on a GitHub self-hosted Linux runner and builds inside `ci/android/Dockerfile`.
+The repository CI runs on GitHub-hosted Ubuntu (`ubuntu-latest`) and builds inside `ci/android/Dockerfile`.
 
 The quality gates are:
 
