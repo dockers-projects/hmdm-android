@@ -47,6 +47,7 @@ public class Application {
     private boolean bottom;
     private boolean longTap;
     private String intent;
+    private String folderId;
 
     public Application() {}
 
@@ -200,5 +201,13 @@ public class Application {
 
     public void setIntent(String intent) {
         this.intent = intent;
+    }
+
+    public String getFolderId() {
+        return folderId;
+    }
+
+    public void setFolderId(String folderId) {
+        this.folderId = folderId;
     }
 }

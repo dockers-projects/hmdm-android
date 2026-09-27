@@ -26,6 +26,7 @@ public class AppInfo implements Parcelable {
     public static final int TYPE_APP = 0;
     public static final int TYPE_WEB = 1;
     public static final int TYPE_INTENT = 2;
+    public static final int TYPE_FOLDER = 3;
 
     public int type;
     public Integer keyCode;
@@ -37,6 +38,7 @@ public class AppInfo implements Parcelable {
     public int useKiosk;
     public int longTap;
     public String intent;
+    public String folderId;
     public boolean multiIcon = false;
     public int iconIndex = 0;
 
@@ -53,6 +55,7 @@ public class AppInfo implements Parcelable {
         useKiosk = appInfo.useKiosk;
         longTap = appInfo.longTap;
         intent = appInfo.intent;
+        folderId = appInfo.folderId;
         multiIcon = appInfo.multiIcon;
         iconIndex = appInfo.iconIndex;
     }
@@ -68,6 +71,7 @@ public class AppInfo implements Parcelable {
         useKiosk = in.readInt();
         longTap = in.readInt();
         intent = in.readString();
+        folderId = in.readString();
         multiIcon = in.readInt() == 1;
         iconIndex = in.readInt();
     }
@@ -84,6 +88,7 @@ public class AppInfo implements Parcelable {
         dest.writeInt(useKiosk);
         dest.writeInt(longTap);
         dest.writeString(intent);
+        dest.writeString(folderId);
         dest.writeInt(multiIcon ? 1 : 0);
         dest.writeInt(iconIndex);
     }

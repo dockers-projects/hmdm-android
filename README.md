@@ -52,3 +52,49 @@ gradlew build
 
 5. Find the resulting APK in the app/build/outputs/apk/release/ directory.
 
+
+
+## Continuous integration
+
+Pull requests to `master`, pushes to `master`, and manual workflow dispatches run the Android quality gates on a GitHub runner labeled:
+
+```yaml
+runs-on: [self-hosted, Linux, X64]
+```
+
+The host needs a GitHub Runner with the standard `self-hosted`, `Linux`, and `X64` labels plus Docker. The workflow also verifies `uname -s == Linux` and `uname -m == x86_64` before building. Java and Android SDK dependencies are isolated in the reproducible image defined by `ci/android/Dockerfile`.
+
+The workflow runs:
+
+```text
+unit tests -> Android lint -> debug APK build -> APK existence check
+```
+
+To reproduce the same checks on a Linux host with Docker:
+
+```bash
+docker build -f ci/android/Dockerfile -t hmdm-android-ci ci/android
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e CI=true \
+  -e HOME=/tmp/home \
+  -e GRADLE_USER_HOME=/tmp/gradle-home \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  hmdm-android-ci \
+  bash ci/run-checks.sh
+```
+
+GitHub Actions uploads the unit-test reports, lint reports, and `app-opensource-debug.apk`.
+
+## Launcher folders
+
+The launcher supports server-configured application folders. See [docs/launcher-folders.md](docs/launcher-folders.md) for:
+
+- the UI behavior;
+- the server JSON contract;
+- root vs bottom-row placement;
+- compatibility/fallback rules;
+- configuration examples;
+- current stock-server limitations.

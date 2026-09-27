@@ -20,7 +20,9 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.FileProvider;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.hmdm.launcher.BuildConfig;
@@ -181,6 +183,10 @@ public abstract class BaseAppListAdapter extends RecyclerView.Adapter<BaseAppLis
                     case AppInfo.TYPE_INTENT:
                         holder.binding.imageView.setImageDrawable(
                                 parentActivity.getResources().getDrawable(getDrawableResourceForIntent(appInfo)));
+                        break;
+                    case AppInfo.TYPE_FOLDER:
+                        holder.binding.imageView.setImageDrawable(
+                                parentActivity.getResources().getDrawable(R.drawable.localfolder));
                         break;
                 }
             }
@@ -350,11 +356,49 @@ public abstract class BaseAppListAdapter extends RecyclerView.Adapter<BaseAppLis
                     }
                 }
                 break;
+            case AppInfo.TYPE_FOLDER:
+                openFolder(appInfo);
+                break;
 
         }
         if (appChooseListener != null) {
             appChooseListener.onAppChoose(appInfo);
         }
+    }
+
+    private void openFolder(AppInfo appInfo) {
+        if (appInfo.folderId == null) {
+            return;
+        }
+
+        RecyclerView recyclerView = new RecyclerView(parentActivity);
+        int padding = parentActivity.getResources().getDimensionPixelSize(R.dimen.activity_horizontal_margin);
+        recyclerView.setPadding(padding, padding, padding, padding);
+        recyclerView.setClipToPadding(false);
+
+        AlertDialog dialog = new AlertDialog.Builder(parentActivity)
+                .setTitle(appInfo.name)
+                .setView(recyclerView)
+                .setNegativeButton(R.string.close, null)
+                .create();
+
+        FolderAppListAdapter folderAdapter = new FolderAppListAdapter(
+                parentActivity,
+                resolveInfo -> {
+                    dialog.dismiss();
+                    if (appChooseListener != null) {
+                        appChooseListener.onAppChoose(resolveInfo);
+                    }
+                },
+                null,
+                appInfo.folderId);
+
+        int maxSpanCount = spanCount > 0 ? spanCount : 4;
+        int folderSpanCount = Math.max(1, Math.min(maxSpanCount, Math.max(1, folderAdapter.getItemCount())));
+        folderAdapter.setSpanCount(folderSpanCount);
+        recyclerView.setLayoutManager(new GridLayoutManager(parentActivity, folderSpanCount));
+        recyclerView.setAdapter(folderAdapter);
+        dialog.show();
     }
 
     private ResolveInfo getResolveInfoMultiIcon(AppInfo appInfo) {
