@@ -269,6 +269,133 @@ For development/testing, the sync response must be produced by a custom server i
 
 A companion server implementation is required before folder creation becomes a normal web-panel operation.
 
+## Temporary folder JSON storage
+
+There is currently **no server-side implementation in this repository** that reads a folder JSON file and injects it into Headwind's sync response. The Android launcher consumes `launcherFolders` and `folderId`, but the stock Headwind server does not yet produce them.
+
+Until a writable `hmdm-server` fork exists, use the following as the agreed storage and wiring contract for the future server hook.
+
+### Host and container path
+
+Keep the editable file outside the container:
+
+```text
+./config/launcher-folders.json
+```
+
+Mount it read-only into the Headwind container:
+
+```yaml
+services:
+  hmdm:
+    volumes:
+      - ./config/launcher-folders.json:/opt/hmdm/custom/launcher-folders.json:ro
+```
+
+A ready-to-copy example is stored in this repository at:
+
+```text
+examples/launcher-folders.json
+```
+
+### File format
+
+The temporary format is keyed by Headwind `configurationId`, because devices already receive a Headwind configuration.
+
+```json
+{
+  "configurations": {
+    "1": {
+      "folders": [
+        {
+          "id": "school",
+          "name": "School",
+          "screenOrder": 10,
+          "bottom": false
+        }
+      ],
+      "applications": {
+        "com.example.math": "school",
+        "com.google.android.youtube": "school"
+      }
+    }
+  }
+}
+```
+
+The `applications` object maps Android package name to folder ID.
+
+### Required server behavior
+
+The future server integration should:
+
+1. determine the device's existing Headwind `configurationId`;
+2. load `/opt/hmdm/custom/launcher-folders.json`;
+3. select `configurations[configurationId]`;
+4. add its `folders` array to the device sync response as `launcherFolders`;
+5. for each normal Headwind application in the sync response, look up its package in `applications`;
+6. when a mapping exists, add `folderId` to that application;
+7. leave all unmatched applications unchanged.
+
+The resulting response consumed by the launcher is therefore still the normal Headwind response, extended with:
+
+```json
+{
+  "launcherFolders": [
+    {
+      "id": "school",
+      "name": "School",
+      "screenOrder": 10,
+      "bottom": false
+    }
+  ],
+  "applications": [
+    {
+      "pkg": "com.example.math",
+      "folderId": "school"
+    }
+  ]
+}
+```
+
+### Failure behavior
+
+The server integration should fail open:
+
+- missing JSON file → send the ordinary Headwind response;
+- invalid JSON → log an error and send the ordinary Headwind response;
+- unknown `configurationId` → no folders;
+- package absent from the mapping → application remains in its ordinary launcher position;
+- mapping references an unknown folder ID → the new launcher also falls back to the application's ordinary position.
+
+Do not make device synchronization fail because the optional folder file is missing or malformed.
+
+### Intended implementation point
+
+Headwind already has `SyncResponseHook`, which is the preferred integration point when a writable server fork is available. The hook can extend the normal sync response without replacing the complete `SyncResource`.
+
+Conceptually:
+
+```text
+Headwind DB/configuration
+        |
+        v
+normal SyncResponse
+        |
+        v
+LauncherFoldersSyncResponseHook
+        |
+        +---- /opt/hmdm/custom/launcher-folders.json
+        |
+        v
+SyncResponse + launcherFolders + folderId
+        |
+        v
+com.hmdm.launcher
+```
+
+This JSON-file layer is intentionally temporary. The final implementation should move folder definitions and application-folder membership into the Headwind database and expose them in the web configuration editor.
+
 ## Compatibility / rollback
 
 The new launcher remains compatible with configurations that do not contain folder fields: it renders the existing flat launcher.

@@ -115,6 +115,8 @@ For the exact build, signing, Docker replacement, canary rollout and rollback pr
 
 Folder creation itself is not yet available in the stock Headwind web UI; the Android client supports the folder JSON contract, but a server-side companion implementation is still required.
 
+For the temporary server-side storage convention, use `examples/launcher-folders.json` and mount it as `/opt/hmdm/custom/launcher-folders.json:ro`. The exact expected server merge behavior is documented in [docs/launcher-delivery.md](docs/launcher-delivery.md). No code in this repository currently reads that file; it is the agreed contract for the future `SyncResponseHook` implementation.
+
 ## Launcher folders
 
 The launcher supports server-configured application folders. See [docs/launcher-folders.md](docs/launcher-folders.md) for:
