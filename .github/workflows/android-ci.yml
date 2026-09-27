@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - master
-      - feature/launcher-folders
   workflow_dispatch:
 
 permissions:
@@ -21,7 +20,7 @@ concurrency:
 jobs:
   android:
     name: Unit tests, lint, APK
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted]
     timeout-minutes: 60
 
     steps:
