@@ -59,10 +59,10 @@ gradlew build
 Pull requests to `master`, pushes to `master`, and manual workflow dispatches run the Android quality gates on a GitHub runner labeled:
 
 ```yaml
-runs-on: [self-hosted, Linux, X64]
+runs-on: ubuntu-latest
 ```
 
-The host needs a GitHub Runner with the standard `self-hosted`, `Linux`, and `X64` labels plus Docker. The workflow also verifies `uname -s == Linux` and `uname -m == x86_64` before building. Java and Android SDK dependencies are isolated in the reproducible image defined by `ci/android/Dockerfile`.
+CI uses GitHub-hosted Ubuntu (`ubuntu-latest`). Docker is available on the hosted runner, while Java and Android SDK dependencies remain isolated in the reproducible image defined by `ci/android/Dockerfile`.
 
 The workflow runs:
 

@@ -20,23 +20,20 @@ concurrency:
 jobs:
   android:
     name: Unit tests, lint, APK
-    runs-on: [self-hosted]
+    runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Require Linux x64 self-hosted runner
+      - name: Show runner environment
         run: |
           echo "runner: $(uname -a)"
-          test "$(uname -s)" = "Linux"
-          test "$(uname -m)" = "x86_64"
+          docker version
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check Docker
-        run: |
-          docker version
-          docker info >/dev/null
+      - name: Check Docker daemon
+        run: docker info >/dev/null
 
       - name: Build Android CI image
         run: |
