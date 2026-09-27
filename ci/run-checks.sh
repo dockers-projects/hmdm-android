@@ -7,16 +7,16 @@ echo "== Java =="
 java -version
 
 echo "== Gradle =="
-./gradlew --version
+bash ./gradlew --version
 
 echo "== Gate 1/3: launcher unit tests =="
-./gradlew --no-daemon --console=plain --stacktrace testOpensourceDebugUnitTest
+bash ./gradlew --no-daemon --console=plain --stacktrace testOpensourceDebugUnitTest
 
 echo "== Gate 2/3: Android lint =="
-./gradlew --no-daemon --console=plain --stacktrace lintOpensourceDebug
+bash ./gradlew --no-daemon --console=plain --stacktrace lintOpensourceDebug
 
 echo "== Gate 3/3: debug APK assembly =="
-./gradlew --no-daemon --console=plain --stacktrace assembleOpensourceDebug
+bash ./gradlew --no-daemon --console=plain --stacktrace assembleOpensourceDebug
 
 APK="app/build/outputs/apk/opensource/debug/app-opensource-debug.apk"
 if [[ ! -s "$APK" ]]; then
