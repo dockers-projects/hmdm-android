@@ -97,6 +97,7 @@ The launcher supports server-configured application folders. See [docs/launcher-
 - root vs bottom-row placement;
 - compatibility/fallback rules;
 - configuration examples;
+- migration from a pre-folder launcher and rollback;
 - current stock-server limitations.
 
 ## Dummy
